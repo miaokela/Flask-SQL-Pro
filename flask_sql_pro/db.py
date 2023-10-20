@@ -64,9 +64,7 @@ class DataBaseHelper(object):
 
     @classmethod
     def filter_sql_injection(cls, input_string):
-        sql_injection_keywords = ['DROP', 'SELECT', 'DELETE', 'UPDATE', 'INSERT', 'EXEC', '--', '/*', '*/', 'xp_', 'sp_']
-
-        for keyword in sql_injection_keywords:
+        for keyword in cls.sql_injection_keywords:
             if keyword in input_string.upper():
                 raise ValueError('Keywords that may be at risk for SQL injection:' + keyword)
         return input_string 
