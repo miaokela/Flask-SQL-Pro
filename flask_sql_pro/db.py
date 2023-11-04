@@ -94,7 +94,7 @@ class DataBaseHelper(object):
         return data
 
     @classmethod
-    def execute_update(cls, tb_name, data, where, app=None, bind=None):
+    def execute_update(cls, tb_name, data, where, app=None, bind=None, commit=False):
         """
         Update data
         Possible problems with UPDATE :where and data fields have the same name, but different values
@@ -108,6 +108,7 @@ class DataBaseHelper(object):
         :param tb_name: indicates the table name
         :param data: indicates data
         :param where: indicates the filter condition
+        :param commit: indicates whether to submit the transaction
         :return: update quantity
         """
         tb_name = cls.filter_sql_injection(tb_name)
@@ -124,6 +125,8 @@ class DataBaseHelper(object):
                 result = cls.db.session.execute(sql, data, bind=bind)
             else:
                 result = cls.db.session.execute(sql, data)
+            if commit:
+                cls.db.session.commit()
             return result.rowcount
         except Exception as e:
             cls.print("Failed to execute sql: < %s %s >! Cause: %s" % (sql, str(data), str(e)))
@@ -138,13 +141,14 @@ class DataBaseHelper(object):
         TextClause._bind_params_regex = re.compile(r'(?<![:\w\x5c]):([\w#]+)(?!:)', re.UNICODE)
 
     @classmethod
-    def execute_create(cls, tb_name, data, app=None, bind=None):
+    def execute_create(cls, tb_name, data, app=None, bind=None, commit=False):
         """
         Insert data
         :param bind:
         :param app:
         :param tb_name: indicates the table name
         :param data: indicates data
+        :param commit: indicates whether to submit the transaction
         :return: indicates the id of the inserted data
         """
         # cls.allow_sharp()
@@ -164,13 +168,15 @@ class DataBaseHelper(object):
                 result = cls.db.session.execute(sql, data, bind=bind)
             else:
                 result = cls.db.session.execute(sql, data)
+            if commit:
+                cls.db.session.commit()
             return result.lastrowid
         except Exception as e:
             cls.print("Failed to execute sql: < %s %s >! Cause: %s" % (sql, str(data), str(e)))
             return None
 
     @classmethod
-    def execute_delete(cls, tb_name, where, logic=False, app=None, bind=None):
+    def execute_delete(cls, tb_name, where, logic=False, app=None, bind=None, commit=False):
         """
         Delete data
         :param bind:
@@ -178,6 +184,7 @@ class DataBaseHelper(object):
         :param logic:
         :param tb_name: indicates the table name
         :param where: indicates the filter condition
+        :param commit: indicates whether to submit the transaction
         :return: indicates the number of deleted items
         """
         tb_name = cls.filter_sql_injection(tb_name)
@@ -193,6 +200,8 @@ class DataBaseHelper(object):
                 result = cls.db.session.execute(sql, where, bind=bind)
             else:
                 result = cls.db.session.execute(sql, where)
+            if commit:
+                cls.db.session.commit()
             return result.rowcount
         except Exception as e:
             cls.print("Failed to execute sql: < %s %s >! Cause: %s" % (sql, str(where), str(e)))
