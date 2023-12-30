@@ -2,6 +2,13 @@
 Changelog
 =============
 
+v4.6 (2023-12-30)
+
+- Added exclude
+- Added __gt __gte __lt __lte __like __in __isnull __between
+
+----------------------
+
 v4.1 (2023-07-24)
 ----------------------
 
