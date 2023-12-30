@@ -89,10 +89,13 @@ class DataBaseHelper(object):
             if key.endswith(op):
                 if opt_type == 'exclude':
                     sql_op = exclude_mapping[op]
+                _key = key.replace(op, '')
                 if op == '__between':
-                    phrase = f"{key} {sql_op} :{filter_str}_between_1_{key} AND :{filter_str}_between_2_{key} AND"
+                    phrase = f"{_key} {sql_op} :{filter_str}_between_1_{key} AND :{filter_str}_between_2_{key} AND "
+                elif op == '__isnull':
+                    phrase = f"{_key} {sql_op} AND "
                 else:
-                    phrase = f"{key} {sql_op} :{filter_str}{key} AND"
+                    phrase = f"{_key} {sql_op} :{filter_str}{key} AND "
                 return phrase
 
         return f"{key} = :_where_{key} AND"
@@ -226,9 +229,9 @@ class DataBaseHelper(object):
             sql += "`%s`" % key + " = :" + key + ","
         sql = sql[0:-1]
 
-        data = cls.fullfilled_data(data, where)
+        data = cls.fullfilled_data(data, where, exclude=exclude)
         sql = cls.set_where_phrase(sql, where)
-        sql = cls.set_exclude_phrase(sql, exclude=exclude)
+        sql = cls.set_exclude_phrase(sql, exclude)
         try:
             if app and bind:
                 bind = cls.db.get_engine(app, bind=bind)
@@ -302,9 +305,8 @@ class DataBaseHelper(object):
         if logic:
             sql = "UPDATE %s SET %s=1" % (tb_name, cls.logic_delete_flag)
         sql = cls.set_where_phrase(sql, where)
-        where = cls.fullfilled_data({}, where)
-        sql = cls.set_exclude_phrase(sql, exclude=exclude)
-
+        sql = cls.set_exclude_phrase(sql, exclude)
+        where = cls.fullfilled_data({}, where, exclude=exclude)
         try:
             if app and bind:
                 bind = cls.db.get_engine(app, bind=bind)
