@@ -63,44 +63,39 @@ class DataBaseHelper(object):
         val: value for either "where" or "exclude"
         opt_type: "where" or "exclude"
         """
-        phrase = f"{key} = :_where_{key} AND"
+        filter_str = '_where_' if opt_type == 'where' else '_exclude_'
+        operator_mapping = {
+            '__gt': '>=',
+            '__gte': '>=',
+            '__lt': '<',
+            '__lte': '<=',
+            '__like': 'LIKE',
+            '__in': 'IN',
+            '__isnull': 'IS NULL' if val else 'IS NOT NULL',
+            '__between': 'BETWEEN'
+        }
+        exclude_mapping = {
+            '__gt': '<',
+            '__gte': '<',
+            '__lt': '>=',
+            '__lte': '>',
+            '__like': 'NOT LIKE',
+            '__in': 'NOT IN',
+            '__isnull': 'IS NOT NULL' if val else 'IS NULL',
+            '__between': 'NOT BETWEEN'
+        }
 
-        filter_str = '_where_'
-        if opt_type == 'exclude':
-            filter_str = '_exclude_'
+        for op, sql_op in operator_mapping.items():
+            if key.endswith(op):
+                if opt_type == 'exclude':
+                    sql_op = exclude_mapping[op]
+                if op == '__between':
+                    phrase = f"{key} {sql_op} :{filter_str}_between_1_{key} AND :{filter_str}_between_2_{key} AND"
+                else:
+                    phrase = f"{key} {sql_op} :{filter_str}{key} AND"
+                return phrase
 
-        if key.endswith('__gt'):
-            phrase = f"{key} >= :{filter_str}{key} AND"
-            if opt_type == 'exclude':
-                phrase = f"{key} < :{filter_str}{key} AND"
-        if key.endswith('__gte'):
-            phrase = f"{key} >= :{filter_str}{key} AND"
-            if opt_type == 'exclude':
-                phrase = f"{key} < :{filter_str}{key} AND"
-        if key.endswith('__lt'):
-            phrase = f"{key} < :{filter_str}{key} AND"
-            if opt_type == 'exclude':
-                phrase = f"{key} >= :{filter_str}{key} AND"
-        if key.endswith('__lte'):
-            phrase = f"{key} <= :{filter_str}{key} AND"
-            if opt_type == 'exclude':
-                phrase = f"{key} > :{filter_str}{key} AND"
-        if key.endswith('__like'):
-            phrase = f"{key} LIKE :{filter_str}{key} AND"
-            if opt_type == 'exclude':
-                phrase = f"{key} NOT LIKE :{filter_str}{key} AND"
-        if key.endswith('__in'):
-            phrase = f"{key} IN :{filter_str}{key} AND"
-            if opt_type == 'exclude':
-                phrase = f"{key} NOT IN :{filter_str}{key} AND"
-        if key.endswith('__isnull'):
-            phrase = f"{key} IS NULL AND " if val else f"{key} IS NOT NULL AND "
-            if opt_type == 'exclude':
-                phrase = f"{key} IS NOT NULL AND " if val else f"{key} IS NULL AND "
-        if key.endswith('__between'):
-            phrase = f"{key} BETWEEN :{filter_str}_between_1_{key} AND :{filter_str}_between_2_{key} AND"
-
-        return phrase
+        return f"{key} = :_where_{key} AND"
 
     @classmethod
     def set_where_phrase(cls, sql, where):
@@ -130,8 +125,9 @@ class DataBaseHelper(object):
             sql += " WHERE "
         else:
             sql += " AND "
-        for key in exclude.keys():
-            sql += key + " != :" + "_exclude_%s" % key + " and "
+
+        for key, val in exclude.items():
+            sql += cls.handle_ops(key, val, opt_type="exclude")
         sql = sql[0:-5]
 
         return sql
@@ -290,7 +286,7 @@ class DataBaseHelper(object):
             return None
 
     @classmethod
-    def execute_delete(cls, tb_name, where, logic=False, app=None, bind=None, commit=False):
+    def execute_delete(cls, tb_name, where, logic=False, app=None, bind=None, commit=False, exclude=None):
         """
         Delete data
         :param bind:
@@ -307,6 +303,7 @@ class DataBaseHelper(object):
             sql = "UPDATE %s SET %s=1" % (tb_name, cls.logic_delete_flag)
         sql = cls.set_where_phrase(sql, where)
         where = cls.fullfilled_data({}, where)
+        sql = cls.set_exclude_phrase(sql, exclude=exclude)
 
         try:
             if app and bind:
