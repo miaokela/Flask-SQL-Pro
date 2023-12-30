@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='Flask-SQL-Pro',
-    version='4.4',
+    version='4.5',
     description='Based on Flask-SQLAlchemy, extract SQL statements, use Jinja2 syntax to achieve dynamic SQL, support contextual transactions, support paging',
     long_description=open('README.rst').read(),
     author='miaokela',

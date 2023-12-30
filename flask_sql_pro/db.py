@@ -48,6 +48,61 @@ class DataBaseHelper(object):
         return params_cp
 
     @classmethod
+    def filter_sql_injection(cls, input_string):
+        for keyword in cls.sql_injection_keywords:
+            if keyword in input_string.upper():
+                raise ValueError('Keywords that may be at risk for SQL injection:' + keyword)
+        return input_string
+
+    @classmethod
+    def handle_ops(cls, key, val, opt_type="where"):
+        """
+        包括的操作符包括: __in、__gt、__gte、__lt、__lte、__like、__isnull、__between
+        Handle more types of operations.
+        key: key for either "where" or "exclude"
+        val: value for either "where" or "exclude"
+        opt_type: "where" or "exclude"
+        """
+        phrase = f"{key} = :_where_{key} AND"
+
+        filter_str = '_where_'
+        if opt_type == 'exclude':
+            filter_str = '_exclude_'
+
+        if key.endswith('__gt'):
+            phrase = f"{key} >= :{filter_str}{key} AND"
+            if opt_type == 'exclude':
+                phrase = f"{key} < :{filter_str}{key} AND"
+        if key.endswith('__gte'):
+            phrase = f"{key} >= :{filter_str}{key} AND"
+            if opt_type == 'exclude':
+                phrase = f"{key} < :{filter_str}{key} AND"
+        if key.endswith('__lt'):
+            phrase = f"{key} < :{filter_str}{key} AND"
+            if opt_type == 'exclude':
+                phrase = f"{key} >= :{filter_str}{key} AND"
+        if key.endswith('__lte'):
+            phrase = f"{key} <= :{filter_str}{key} AND"
+            if opt_type == 'exclude':
+                phrase = f"{key} > :{filter_str}{key} AND"
+        if key.endswith('__like'):
+            phrase = f"{key} LIKE :{filter_str}{key} AND"
+            if opt_type == 'exclude':
+                phrase = f"{key} NOT LIKE :{filter_str}{key} AND"
+        if key.endswith('__in'):
+            phrase = f"{key} IN :{filter_str}{key} AND"
+            if opt_type == 'exclude':
+                phrase = f"{key} NOT IN :{filter_str}{key} AND"
+        if key.endswith('__isnull'):
+            phrase = f"{key} IS NULL AND " if val else f"{key} IS NOT NULL AND "
+            if opt_type == 'exclude':
+                phrase = f"{key} IS NOT NULL AND " if val else f"{key} IS NULL AND "
+        if key.endswith('__between'):
+            phrase = f"{key} BETWEEN :{filter_str}_between_1_{key} AND :{filter_str}_between_2_{key} AND"
+
+        return phrase
+
+    @classmethod
     def set_where_phrase(cls, sql, where):
         """
         Generate where statement
@@ -55,22 +110,61 @@ class DataBaseHelper(object):
         if not where:
             return sql
         where_str = " WHERE "
-        for key in where.keys():
-            where_str += key + " = :" + "_where_%s" % key + " and "
+        for key, val in where.items():
+            where_str += cls.handle_ops(key, val, opt_type="where")
+
         where_str = where_str[0:-5]
         sql += where_str
 
         return sql
+    
+    @classmethod
+    def set_exclude_phrase(cls, sql, exclude):
+        """
+        Generate exclude statement
+        """
+        if not exclude:
+            return sql
+        
+        if "WHERE" not in sql.upper():
+            sql += " WHERE "
+        else:
+            sql += " AND "
+        for key in exclude.keys():
+            sql += key + " != :" + "_exclude_%s" % key + " and "
+        sql = sql[0:-5]
+
+        return sql
 
     @classmethod
-    def filter_sql_injection(cls, input_string):
-        for keyword in cls.sql_injection_keywords:
-            if keyword in input_string.upper():
-                raise ValueError('Keywords that may be at risk for SQL injection:' + keyword)
-        return input_string 
+    def check_sql_injection(cls, k, v):
+        """
+        Avoid sql injection
+        """
+        if any(keyword in str(k).upper() for keyword in cls.sql_injection_keywords):
+            raise ValueError('Keywords that may be at risk for SQL injection in key: ' + str(k))
+        if any(keyword in str(v).upper() for keyword in cls.sql_injection_keywords):
+            raise ValueError('Keywords that may be at risk for SQL injection in value: ' + str(v))
 
     @classmethod
-    def fullfilled_data(cls, data, where):
+    def handle_range_type(cls, k, v, is_where=True):
+        # Check if it is a tuple or list
+        # Check if it is __between
+        data = None
+        bt_str = '_where__between_'
+        if not is_where:
+            bt_str = '_exclude__between_'
+        if isinstance(v, (tuple, list)):
+            if len(v) == 2:
+                if k.endswith("__between"):
+                    data = {
+                        f"{bt_str}1_{k}": v[0],
+                        f"{bt_str}2_{k}": v[1],
+                    }
+        return data
+
+    @classmethod
+    def fullfilled_data(cls, data, where, exclude=None):
         """
         The delete/update operation adds a _where_${field} field to each field in the where condition of the incoming data,
         which is used for the assignment of the where condition
@@ -79,22 +173,41 @@ class DataBaseHelper(object):
             return data
 
         for k, v in where.items():
-            # Avoid sql injection
-            if any(keyword in str(k).upper() for keyword in cls.sql_injection_keywords):
-                raise ValueError('Keywords that may be at risk for SQL injection in key: ' + str(k))
-            if any(keyword in str(v).upper() for keyword in cls.sql_injection_keywords):
-                raise ValueError('Keywords that may be at risk for SQL injection in value: ' + str(v))
+            cls.check_sql_injection(k, v)
 
             if k.startswith("_where_"):
                 raise Exception("The where condition cannot contain a field starting with _where_")
+            
+            _d = cls.handle_range_type(k, v)
+            if _d:
+                data.update(**_d)
+                continue
+
             data.update(**{
                 "_where_%s" % k: v
             })
 
+        # Exclude
+        if exclude:
+            for k, v in exclude.items():
+                cls.check_sql_injection(k, v)
+
+                if k.startswith("_exclude_"):
+                    raise Exception("The exclude condition cannot contain a field starting with _exclude_")
+
+                _d = cls.handle_range_type(k, v, is_where=False)
+                if _d:
+                    data.update(**_d)
+                    continue
+
+                data.update(**{
+                    "_exclude_%s" % k: v
+                })
+
         return data
 
     @classmethod
-    def execute_update(cls, tb_name, data, where, app=None, bind=None, commit=False):
+    def execute_update(cls, tb_name, data, where, app=None, bind=None, commit=False, exclude=None):
         """
         Update data
         Possible problems with UPDATE :where and data fields have the same name, but different values
@@ -119,6 +232,7 @@ class DataBaseHelper(object):
 
         data = cls.fullfilled_data(data, where)
         sql = cls.set_where_phrase(sql, where)
+        sql = cls.set_exclude_phrase(sql, exclude=exclude)
         try:
             if app and bind:
                 bind = cls.db.get_engine(app, bind=bind)
