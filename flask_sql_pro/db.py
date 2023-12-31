@@ -34,7 +34,7 @@ class DataBaseHelper(object):
     @classmethod
     def print(cls, msg):
         if cls.print_msg:
-            print(msg)
+            print(f"\033[92m{msg}\033[0m")
 
     @classmethod
     def get_params_without_paginated(cls, params: typing.Dict):
