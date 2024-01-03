@@ -1,26 +1,9 @@
-
-Changelog
-=============
-
-v4.6 (2023-12-30)
-
-- Added exclude
-- Added __gt __gte __lt __lte __like __in __isnull __between
-
-----------------------
-
-v4.1 (2023-07-24)
-----------------------
-
-- Added security check
-- Fixed bug default delete flag
-
-
-Use of Flask-SQL-Pro
+Use of Flask-SQL-Pro()
 ==========================
 
-Example: https://www.cnblogs.com/miaokela/articles/17571427.html
+Based on flask-sqlalchemy function, add sql statements to separate, implement dynamic SQL through jinja2, and provide simple database operation plug-in.
 
+Example: https://www.cnblogs.com/miaokela/articles/17571427.html
 
 .. pull-quote:: 
   pip install flask-sql-pro

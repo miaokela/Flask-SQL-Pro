@@ -303,6 +303,8 @@ class DataBaseHelper(object):
         tb_name = cls.filter_sql_injection(tb_name)
         sql = "DELETE FROM " + tb_name
         if logic:
+            if not cls.logic_delete_flag:
+                raise Exception("Logic delete flag is not defined")
             sql = "UPDATE %s SET %s=1" % (tb_name, cls.logic_delete_flag)
         sql = cls.set_where_phrase(sql, where)
         sql = cls.set_exclude_phrase(sql, exclude)
